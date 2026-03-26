@@ -69,6 +69,14 @@ class TrackingNode(Node):
         self.obs_pose = None
         self.goal_pose = None
         
+        # Start pose
+        self.t = 0
+        self.home_pose = None
+        
+        # Flags to end process (when both True)
+        self.goal_detected = False
+        self.home_detected = False
+        
         # ROS parameters
         self.declare_parameter('world_frame_id', 'odom')
 
@@ -91,12 +99,9 @@ class TrackingNode(Node):
         odom_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
         center_points = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
         
-        # TODO: Filtering
-        # You can decide to filter the detected object pose here
-        # For example, you can filter the pose based on the distance from the camera
-        # or the height of the object
-        # if np.linalg.norm(center_points) > 3 or center_points[2] > 0.7:
-        #     return
+        # NOTE: From Todo Filtering
+        if np.linalg.norm(center_points) > 3 or center_points[2] > 0.7:
+            return
         
         try:
             # Transform the center point from the camera frame to the world frame
@@ -116,12 +121,9 @@ class TrackingNode(Node):
         odom_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
         center_points = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
         
-        # TODO: Filtering
-        # You can decide to filter the detected object pose here
-        # For example, you can filter the pose based on the distance from the camera
-        # or the height of the object
-        # if np.linalg.norm(center_points) > 3 or center_points[2] > 0.7:
-        #     return
+        # NOTE: From Todo Filtering
+        if np.linalg.norm(center_points) > 3 or center_points[2] > 0.7:
+            return
         
         try:
             # Transform the center point from the camera frame to the world frame
@@ -146,6 +148,12 @@ class TrackingNode(Node):
             robot_world_y = transform.transform.translation.y
             robot_world_z = transform.transform.translation.z
             robot_world_R = q2R([transform.transform.rotation.w, transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z])
+            
+            # Set start pose at first pose retrieval step
+            if self.t == 0:
+                self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_z])
+                self.t = 1
+            
             obstacle_pose = robot_world_R@self.obs_pose+np.array([robot_world_x,robot_world_y,robot_world_z])
             goal_pose = robot_world_R@self.goal_pose+np.array([robot_world_x,robot_world_y,robot_world_z])
     
@@ -157,11 +165,7 @@ class TrackingNode(Node):
         return obstacle_pose, goal_pose
     
     def timer_update(self):
-        ################### Write your code here ###################
-        
-        # Now, the robot stops if the object is not detected
-        # But, you may want to think about what to do in this case
-        # and update the command velocity accordingly
+        # NOTE: May need to be updated to avoid robot doing nothing when not detecting the robot
         if self.goal_pose is None:
             cmd_vel = Twist()
             cmd_vel.linear.x = 0.0
@@ -172,27 +176,54 @@ class TrackingNode(Node):
         # Get the current object pose in the robot base_footprint frame
         current_obs_pose, current_goal_pose = self.get_current_poses()
         
-        # TODO: get the control velocity command
-        cmd_vel = self.controller()
+        cmd_vel = self.controller(current_goal_pose, current_obs_pose)
         
         # publish the control command
         self.pub_control_cmd.publish(cmd_vel)
-        #################################################
     
-    def controller(self):
-        # Instructions: You can implement your own control algorithm here
-        # feel free to modify the code structure, add more parameters, more input variables for the function, etc.
-        
-        ########### Write your code here ###########
-        
-        # TODO: Update the control velocity command
+    def controller(
+        self, 
+        goal_pose: np.ndarray, 
+        obs_pose: np.ndarray | None=None,
+        K_linear = 0.4,  # proportional gain for forward speed
+        K_angular = 1.2,   # proportional gain for turning
+        goal_margin = 0.3,   # stop when get close enough to the goal
+        obs_margin = 0.6,   # start repelling when get too close to obstacle
+        obs_repel = 0.8 ,  # how strongly to turn away from obstacle
+    ):
+        goal_dist  = np.linalg.norm(goal_pose[:2])
+        goal_angle = math.atan2(goal_pose[1], goal_pose[0])
+
+        # Robot within acceptable distance to goal
+        if goal_dist < goal_margin:
+            self.get_logger().info("==============GOAL REACHED=============")
+            self.goal_pose = self.home_pose
+
+        # Proportional controller
+        linear_speed = K_linear  * goal_dist
+        angular_speed = K_angular * goal_angle
+
+        # Obstacle has been detected
+        if obs_pose is not None:
+            obs_dist = np.linalg.norm(obs_pose[:2])
+            # Robot is near obstacle
+            if obs_dist < obs_margin:
+                obs_angle = math.atan2(obs_pose[1], obs_pose[0])
+                repel = obs_repel * (obs_margin - obs_dist) / obs_margin
+                angular_speed -= repel * np.sign(obs_angle)
+                # slow down when obstacle is close
+                linear_speed *= (obs_dist / obs_margin)
+                
+                # assume obstacle is cleared, will be deteted again at t+1 if not
+                obs_pose = None
+                
+        # update control inputs (vx, vy, theta_z)
         cmd_vel = Twist()
-        cmd_vel.linear.x = 0
+        cmd_vel.linear.x = float(np.clip(linear_speed,  0.0,  0.3))
         cmd_vel.linear.y = 0
-        cmd_vel.angular.z = 0
+        cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
+                                
         return cmd_vel
-    
-        ############################################
 
 def main(args=None):
     # Initialize the rclpy library
