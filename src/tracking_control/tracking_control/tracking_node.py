@@ -184,7 +184,7 @@ class TrackingNode(Node):
     def controller(
         self, 
         goal_pose: np.ndarray, 
-        obs_pose: np.ndarray | None=None,
+        obs_pose: np.ndarray =None,
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.3,   # stop when get close enough to the goal
