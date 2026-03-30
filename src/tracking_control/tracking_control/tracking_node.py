@@ -235,7 +235,7 @@ class TrackingNode(Node):
         # update control inputs (vx, vy, theta_z)
         cmd_vel = Twist()
         cmd_vel.linear.x = float(np.clip(linear_speed,  0.0,  0.3))
-        cmd_vel.linear.y = 0
+        cmd_vel.linear.y = 0.0
         cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
                                 
         return cmd_vel
