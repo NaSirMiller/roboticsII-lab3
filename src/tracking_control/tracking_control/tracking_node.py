@@ -94,7 +94,7 @@ class TrackingNode(Node):
         self.timer = self.create_timer(0.01, self.timer_update)
     
     def detected_obs_pose_callback(self, msg):
-        #self.get_logger().info('Received Detected Object Pose')
+        self.get_logger().info('Received Detected Obstacle Pose')
         
         odom_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
         center_points = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
@@ -116,7 +116,7 @@ class TrackingNode(Node):
         self.obs_pose = cp_world
 
     def detected_goal_pose_callback(self, msg):
-        #self.get_logger().info('Received Detected Object Pose')
+        self.get_logger().info('Received Detected Goal Pose')
         
         odom_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
         center_points = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
@@ -153,14 +153,28 @@ class TrackingNode(Node):
             if self.t == 0:
                 self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_z])
                 self.t = 1
-            
-            obstacle_pose = robot_world_R@self.obs_pose+np.array([robot_world_x,robot_world_y,robot_world_z])
-            goal_pose = robot_world_R@self.goal_pose+np.array([robot_world_x,robot_world_y,robot_world_z])
     
         
         except TransformException as e:
             self.get_logger().error('Transform error: ' + str(e))
             return
+        
+        obstacle_pose = None
+        
+        # avoid multiplying None with np.ndarray
+        if self.obs_pose is not None:
+            obstacle_pose = (
+            robot_world_R @ self.obs_pose + 
+            np.array([robot_world_x,
+                      robot_world_y,
+                      robot_world_z]
+                    ))
+        
+        goal_pose = (robot_world_R @ self.goal_pose + 
+        np.array([robot_world_x,
+                  robot_world_y,
+                  robot_world_z]
+                ))
         
         return obstacle_pose, goal_pose
     
@@ -184,7 +198,7 @@ class TrackingNode(Node):
     def controller(
         self, 
         goal_pose: np.ndarray, 
-        obs_pose: np.ndarray =None,
+        obs_pose: np.ndarray = None,
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.3,   # stop when get close enough to the goal
@@ -195,9 +209,9 @@ class TrackingNode(Node):
         goal_angle = math.atan2(goal_pose[1], goal_pose[0])
 
         # Robot within acceptable distance to goal
-        if goal_dist < goal_margin:
+        if goal_dist <= goal_margin:
             self.get_logger().info("==============GOAL REACHED=============")
-            self.goal_pose = self.home_pose
+            self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
 
         # Proportional controller
         linear_speed = K_linear  * goal_dist
@@ -215,6 +229,7 @@ class TrackingNode(Node):
                 linear_speed *= (obs_dist / obs_margin)
                 
                 # assume obstacle is cleared, will be deteted again at t+1 if not
+                # aims to avoid case of a stale obstacle being "detected"
                 obs_pose = None
                 
         # update control inputs (vx, vy, theta_z)
