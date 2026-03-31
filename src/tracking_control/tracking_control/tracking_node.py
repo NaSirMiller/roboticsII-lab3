@@ -202,8 +202,8 @@ class TrackingNode(Node):
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.3,   # stop when get close enough to the goal
-        obs_margin = 0.6,   # start repelling when get too close to obstacle
-        obs_repel = 0.8 ,  # how strongly to turn away from obstacle
+        obs_margin = 0.7,   # start repelling when get too close to obstacle
+        obs_repel = 0.9 ,  # how strongly to turn away from obstacle
     ):
         goal_dist  = np.linalg.norm(goal_pose[:2])
         goal_angle = math.atan2(goal_pose[1], goal_pose[0])
