@@ -210,8 +210,9 @@ class TrackingNode(Node):
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
-        goal_dist  = np.linalg.norm(goal_pose[:2])
-        goal_angle = math.atan2(goal_pose[1], goal_pose[0])
+        rel_goal = goal_pose[:2] - robot_pose[:2]
+        goal_dist  = np.linalg.norm(rel_goal)
+        goal_angle = math.atan2(rel_goal[1], rel_goal[0])
         current_time = time.time()
 
         # Stopping fix 2
@@ -220,9 +221,12 @@ class TrackingNode(Node):
                 # Goal reached: switch to pause
                 self.state = "PAUSE"
                 self.state_start_time = current_time
-                linear_speed = 0;
-                angular_speed = 0;
+                cmd_vel = Twist()
+                cmd_vel.linear.x = 0
+                cmd_vel.linear.y = 0
+                cmd_vel.angular.z = 0
                 self.get_logger().info("==============GOAL REACHED=============")
+                return cmd_vel
             else:
                 linear_speed = K_linear * goal_dist
                 angular_speed = K_angular * goal_angle
@@ -245,21 +249,28 @@ class TrackingNode(Node):
             if elapsed >= 5.0:
                 self.state = 'BACKUP'
                 self.state_start_time = time.time()  # start backup timer
-                linear_speed = -0.3
-                angular_speed = 0.2
+                cmd_vel = Twist()
+                cmd_vel.linear.x = -0.3
+                cmd_vel.linear.y = 0
+                cmd_vel.angular.z = 0
+                return cmd_vel
             else:
-                linear_speed = 0
-                angular_speed = 0
-            return cmd_vel
+                cmd_vel = Twist()
+                cmd_vel.linear.x = 0
+                cmd_vel.linear.y = 0
+                cmd_vel.angular.z = 0
+                return cmd_vel
 
         elif self.goal_state == 'BACKUP':
             elapsed = time.time() - self.state_start_time
             if elapsed >= 5.0:
                 self.state = 'GO TO GOAL'
             else:
+                cmd_vel = Twist()
                 cmd_vel.linear.x = -0.3
+                cmd_vel.linear.y = 0
                 cmd_vel.angular.z = 0
-            return cmd_vel     
+                return cmd_vel     
         
         
         # Robot within acceptable distance to goal
