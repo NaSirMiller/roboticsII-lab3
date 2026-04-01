@@ -4,6 +4,7 @@ from geometry_msgs.msg import Twist, PoseStamped
 from tf2_ros import TransformException, Buffer, TransformListener
 import numpy as np
 import math
+import time
 
 ## Functions for quaternion and rotation matrix conversion
 ## The code is adapted from the general_robotics_toolbox package
@@ -214,8 +215,9 @@ class TrackingNode(Node):
         if goal_dist <= goal_margin:
             self.get_logger().info("==============GOAL REACHED=============")
             time.sleep(5)
+            
             self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin == 0.1
+            goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
@@ -238,7 +240,7 @@ class TrackingNode(Node):
                 
         # update control inputs (vx, vy, theta_z)
         cmd_vel = Twist()
-        cmd_vel.linear.x = float(np.clip(linear_speed,  0.0,  0.3))
+        cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
         cmd_vel.linear.y = 0.0
         cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
                                 
