@@ -214,97 +214,39 @@ class TrackingNode(Node):
         goal_dist  = np.linalg.norm(rel_goal)
         goal_angle = math.atan2(rel_goal[1], rel_goal[0])
         current_time = time.time()
-
-        # Stopping fix 2
-        if self.state == "GO_TO_GOAL":
-            if goal_dist <= goal_margin:
-                # Goal reached: switch to pause
-                self.state = "PAUSE"
-                self.state_start_time = current_time
-                cmd_vel = Twist()
-                cmd_vel.linear.x = 0
-                cmd_vel.linear.y = 0
-                cmd_vel.angular.z = 0
-                self.get_logger().info("==============GOAL REACHED=============")
-                return cmd_vel
-            else:
-                linear_speed = K_linear * goal_dist
-                angular_speed = K_angular * goal_angle
-
-                if obs_pose is not None:
-                    obs_dist = np.linalg.norm(obs_pose[:2])
-                    if obs_dist < obs_margin:
-                        obs_angle = math.atan2(obs_pose[1], obs_pose[0])
-                        repel = obs_repel * (obs_margin - obs_dist) / obs_margin
-                        angular_speed -= repel * np.sign(obs_angle)
-                        linear_speed *= (obs_dist / obs_margin)
-
-                cmd_vel = Twist()
-                cmd_vel.linear.x = float(np.clip(linear_speed, -0.3, 0.3))
-                cmd_vel.linear.y = 0.0
-                cmd_vel.angular.z = float(np.clip(angular_speed, -1.5, 1.5))
-
-        if self.goal_state == 'PAUSE':
-            elapsed = time.time() - self.state_start_time
-            if elapsed >= 5.0:
-                self.state = 'BACKUP'
-                self.state_start_time = time.time()  # start backup timer
-                cmd_vel = Twist()
-                cmd_vel.linear.x = -0.3
-                cmd_vel.linear.y = 0
-                cmd_vel.angular.z = 0
-                return cmd_vel
-            else:
-                cmd_vel = Twist()
-                cmd_vel.linear.x = 0
-                cmd_vel.linear.y = 0
-                cmd_vel.angular.z = 0
-                return cmd_vel
-
-        if self.goal_state == 'BACKUP':
-            elapsed = time.time() - self.state_start_time
-            if elapsed >= 5.0:
-                self.state = 'GO TO GOAL'
-            else:
-                cmd_vel = Twist()
-                cmd_vel.linear.x = -0.3
-                cmd_vel.linear.y = 0
-                cmd_vel.angular.z = 0
-                return cmd_vel     
-        
         
         # Robot within acceptable distance to goal
-        #if goal_dist <= goal_margin:
-            #self.get_logger().info("==============GOAL REACHED=============")
-            #time.sleep(5)
-            
-            #self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            #goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
+        if goal_dist <= goal_margin:
+            self.get_logger().info("==============GOAL REACHED=============")
+            linear_speed = 0;
+            angular speed = 0;
+            goal_pose = self.home_pose # first goal has been met, now return back to starting point
+            goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
 
         # Proportional controller
-        #linear_speed = K_linear * goal_dist
-        #angular_speed = K_angular * goal_angle
+        linear_speed = K_linear * goal_dist
+        angular_speed = K_angular * goal_angle
 
         # Obstacle has been detected
-        #if obs_pose is not None:
-            #obs_dist = np.linalg.norm(obs_pose[:2])
+        if obs_pose is not None:
+            obs_dist = np.linalg.norm(obs_pose[:2])
             # Robot is near obstacle
-            #if obs_dist < obs_margin:
-                #obs_angle = math.atan2(obs_pose[1], obs_pose[0])
-                #repel = obs_repel * (obs_margin - obs_dist) / obs_margin
-                #angular_speed -= repel * np.sign(obs_angle)
+            if obs_dist < obs_margin:
+                obs_angle = math.atan2(obs_pose[1], obs_pose[0])
+                repel = obs_repel * (obs_margin - obs_dist) / obs_margin
+                angular_speed -= repel * np.sign(obs_angle)
                 # slow down when obstacle is close
-                #linear_speed *= (obs_dist / obs_margin)
+                linear_speed *= (obs_dist / obs_margin)
                 
                 # assume obstacle is cleared, will be deteted again at t+1 if not
                 # aims to avoid case of a stale obstacle being "detected"
-                #obs_pose = None
+                obs_pose = None
                 
         # update control inputs (vx, vy, theta_z)
-        #cmd_vel = Twist()
-        #cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
-        #cmd_vel.linear.y = 0.0
-        #cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
+        cmd_vel = Twist()
+        cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
+        cmd_vel.linear.y = 0.0
+        cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
                                 
         return cmd_vel
 
