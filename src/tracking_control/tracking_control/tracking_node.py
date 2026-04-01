@@ -220,8 +220,8 @@ class TrackingNode(Node):
                 # Goal reached: switch to pause
                 self.state = "PAUSE"
                 self.state_start_time = current_time
-                cmd_vel.linear.x = 0
-                cmd_vel.angular.z = 0
+                linear_speed = 0;
+                angular_speed = 0;
                 self.get_logger().info("==============GOAL REACHED=============")
             else:
                 linear_speed = K_linear * goal_dist
@@ -240,20 +240,26 @@ class TrackingNode(Node):
                 cmd_vel.linear.y = 0.0
                 cmd_vel.angular.z = float(np.clip(angular_speed, -1.5, 1.5))
 
-            if self.state == "PAUSE":
-                cmd_vel.linear.x = 0
-                cmd_vel.angular.z = 0
-                if current_time - self.state_start_time >= 5.0:  # 5 seconds pause
-                    self.state = "BACKUP"
-                    self.state_start_time = current_time
+        elif self.goal_state == 'PAUSE':
+            elapsed = time.time() - self.state_start_time
+            if elapsed >= 5.0:
+                self.state = 'BACKUP'
+                self.state_start_time = time.time()  # start backup timer
+                linear_speed = -0.3
+                angular_speed = 0.2
+            else:
+                linear_speed = 0
+                angular_speed = 0
+            return cmd_vel
 
-            if self.state == "BACKUP":
+        elif self.goal_state == 'BACKUP':
+            elapsed = time.time() - self.state_start_time
+            if elapsed >= 5.0:
+                self.state = 'GO TO GOAL'
+            else:
                 cmd_vel.linear.x = -0.3
                 cmd_vel.angular.z = 0
-                if current_time - self.state_start_time >= 2.0:  # 2 seconds backup
-                    # Optionally, set next goal here:
-                    self.goal_pose = self.home_pose
-                    self.state = "GO_TO_GOAL"        
+            return cmd_vel     
         
         
         # Robot within acceptable distance to goal
