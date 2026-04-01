@@ -154,9 +154,9 @@ class TrackingNode(Node):
             
             # Set start pose at first pose retrieval step
             if self.t == 0:
+                self.get_logger().info('--------HOME POSE SET----------')
                 self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_z])
                 self.t = 1
-    
         
         except TransformException as e:
             self.get_logger().error('Transform error: ' + str(e))
@@ -211,13 +211,39 @@ class TrackingNode(Node):
         goal_dist  = np.linalg.norm(goal_pose[:2])
         goal_angle = math.atan2(goal_pose[1], goal_pose[0])
 
-        # Robot within acceptable distance to goal
+        # Stopping fix 1
         if goal_dist <= goal_margin:
+            self.t = self.t+1;
+
+        if self.t == 2
             self.get_logger().info("==============GOAL REACHED=============")
-            time.sleep(5)
+
+            cmd_vel = Twist()
+            cmd_vel.linear.x = 0
+            cmd_vel.linear.y = 0
+            cmd_vel.angular.z = 0
             
             self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
+            goal_margin == 0.1
+            time.sleep(5)
+
+            cmd_vel = Twist()
+            cmd_vel.linear.x = -0.3
+            cmd_vel.linear.y = 0
+            cmd_vel.angular.z = 0
+            time.sleep(5)
+        
+        
+        
+        
+        
+        # Robot within acceptable distance to goal
+        #if goal_dist <= goal_margin:
+            #self.get_logger().info("==============GOAL REACHED=============")
+            #time.sleep(5)
+            
+            #self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
+            #goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
