@@ -69,6 +69,8 @@ class TrackingNode(Node):
         # Current object pose
         self.obs_pose = None
         self.goal_pose = None
+        self.state = "GO_TO_GOAL"
+        self.state_start_time = None
         
         # Start pose
         self.t = 0
@@ -210,31 +212,48 @@ class TrackingNode(Node):
     ):
         goal_dist  = np.linalg.norm(goal_pose[:2])
         goal_angle = math.atan2(goal_pose[1], goal_pose[0])
+        current_time = time.time()
 
-        # Stopping fix 1
-        if goal_dist <= goal_margin:
-            self.t = self.t+1;
+        # Stopping fix 2
+        if self.state == "GO_TO_GOAL":
+            if goal_dist <= goal_margin:
+                # Goal reached: switch to pause
+                self.state = "PAUSE"
+                self.state_start_time = current_time
+                cmd_vel.linear.x = 0
+                cmd_vel.angular.z = 0
+                self.get_logger().info("==============GOAL REACHED=============")
+            else:
+                linear_speed = K_linear * goal_dist
+                angular_speed = K_angular * goal_angle
 
-        if self.t == 2
-            self.get_logger().info("==============GOAL REACHED=============")
+                if obs_pose is not None:
+                    obs_dist = np.linalg.norm(obs_pose[:2])
+                    if obs_dist < obs_margin:
+                        obs_angle = math.atan2(obs_pose[1], obs_pose[0])
+                        repel = obs_repel * (obs_margin - obs_dist) / obs_margin
+                        angular_speed -= repel * np.sign(obs_angle)
+                        linear_speed *= (obs_dist / obs_margin)
 
-            cmd_vel = Twist()
-            cmd_vel.linear.x = 0
-            cmd_vel.linear.y = 0
-            cmd_vel.angular.z = 0
-            
-            self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin == 0.1
-            time.sleep(5)
+                cmd_vel = Twist()
+                cmd_vel.linear.x = float(np.clip(linear_speed, -0.3, 0.3))
+                cmd_vel.linear.y = 0.0
+                cmd_vel.angular.z = float(np.clip(angular_speed, -1.5, 1.5))
 
-            cmd_vel = Twist()
-            cmd_vel.linear.x = -0.3
-            cmd_vel.linear.y = 0
-            cmd_vel.angular.z = 0
-            time.sleep(5)
-        
-        
-        
+            elif self.state == "PAUSE":
+                cmd_vel.linear.x = 0
+                cmd_vel.angular.z = 0
+                if current_time - self.state_start_time >= 5.0:  # 5 seconds pause
+                    self.state = "BACKUP"
+                    self.state_start_time = current_time
+
+            elif self.state == "BACKUP":
+                cmd_vel.linear.x = -0.3
+                cmd_vel.angular.z = 0
+                if current_time - self.state_start_time >= 2.0:  # 2 seconds backup
+                    # Optionally, set next goal here:
+                    self.goal_pose = self.home_pose
+                    self.state = "GO_TO_GOAL"        
         
         
         # Robot within acceptable distance to goal
@@ -246,29 +265,29 @@ class TrackingNode(Node):
             #goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
 
         # Proportional controller
-        linear_speed = K_linear * goal_dist
-        angular_speed = K_angular * goal_angle
+        #linear_speed = K_linear * goal_dist
+        #angular_speed = K_angular * goal_angle
 
         # Obstacle has been detected
-        if obs_pose is not None:
-            obs_dist = np.linalg.norm(obs_pose[:2])
+        #if obs_pose is not None:
+            #obs_dist = np.linalg.norm(obs_pose[:2])
             # Robot is near obstacle
-            if obs_dist < obs_margin:
-                obs_angle = math.atan2(obs_pose[1], obs_pose[0])
-                repel = obs_repel * (obs_margin - obs_dist) / obs_margin
-                angular_speed -= repel * np.sign(obs_angle)
+            #if obs_dist < obs_margin:
+                #obs_angle = math.atan2(obs_pose[1], obs_pose[0])
+                #repel = obs_repel * (obs_margin - obs_dist) / obs_margin
+                #angular_speed -= repel * np.sign(obs_angle)
                 # slow down when obstacle is close
-                linear_speed *= (obs_dist / obs_margin)
+                #linear_speed *= (obs_dist / obs_margin)
                 
                 # assume obstacle is cleared, will be deteted again at t+1 if not
                 # aims to avoid case of a stale obstacle being "detected"
-                obs_pose = None
+                #obs_pose = None
                 
         # update control inputs (vx, vy, theta_z)
-        cmd_vel = Twist()
-        cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
-        cmd_vel.linear.y = 0.0
-        cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
+        #cmd_vel = Twist()
+        #cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
+        #cmd_vel.linear.y = 0.0
+        #cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
                                 
         return cmd_vel
 
