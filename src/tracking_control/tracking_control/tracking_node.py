@@ -69,19 +69,12 @@ class TrackingNode(Node):
         # Current object pose
         self.obs_pose = None
         self.goal_pose = None
-        self.state = "GO_TO_GOAL"
-        self.state_start_time = None
         
         # Start pose
         self.t = 0
         self.home_pose = None
-        
-        # Flags to end process (when both True)
-        self.goal_detected = False
-        self.home_detected = False
-        
-        self.paused = False
-        
+        self.robot_world_yaw = 0
+                
         # ROS parameters
         self.declare_parameter('world_frame_id', 'odom')
 
@@ -153,11 +146,12 @@ class TrackingNode(Node):
             robot_world_y = transform.transform.translation.y
             robot_world_z = transform.transform.translation.z
             robot_world_R = q2R([transform.transform.rotation.w, transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z])
+            self.robot_world_yaw = robot_world_R
             
             # Set start pose at first pose retrieval step
             if self.t == 0:
                 self.get_logger().info('--------HOME POSE SET----------')
-                self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_z])
+                self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_R])
                 self.t = 1
         
         except TransformException as e:
@@ -168,18 +162,8 @@ class TrackingNode(Node):
         
         # avoid multiplying None with np.ndarray
         if self.obs_pose is not None:
-            obstacle_pose = (
-            robot_world_R @ self.obs_pose + 
-            np.array([robot_world_x,
-                      robot_world_y,
-                      robot_world_z]
-                    ))
-        
-        goal_pose = (robot_world_R @ self.goal_pose + 
-        np.array([robot_world_x,
-                  robot_world_y,
-                  robot_world_z]
-                ))
+            obstacle_pose = (robot_world_R @ self.obs_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
+        goal_pose = (robot_world_R @ self.goal_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
         
         return obstacle_pose, goal_pose
     
@@ -201,8 +185,9 @@ class TrackingNode(Node):
         self.pub_control_cmd.publish(cmd_vel)
     
     def controller(
-        self, 
-        goal_pose: np.ndarray, 
+        self,
+        goal_pose: np.ndarray,
+        robot_pose: np.ndarray,
         obs_pose: np.ndarray = None,
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
@@ -212,16 +197,19 @@ class TrackingNode(Node):
     ):
         rel_goal = goal_pose[:2] - robot_pose[:2]
         goal_dist  = np.linalg.norm(rel_goal)
-        goal_angle = math.atan2(rel_goal[1], rel_goal[0])
-        current_time = time.time()
+        goal_angle = math.atan2(rel_goal[1], rel_goal[0]) - self.robot_world_yaw
+        goal_angle = (goal_angle + np.pi) % (2*np.pi) - np.pi
         
         # Robot within acceptable distance to goal
-        if goal_dist <= goal_margin:
+        if goal_dist <= goal_margin: 
             self.get_logger().info("==============GOAL REACHED=============")
-            linear_speed = 0;
-            angular speed = 0;
-            goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
+            self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
+            self.goal_margin = 0.1 # update margin to avoid robot missing original home pose
+            cmd_vel = Twist()
+            cmd_vel.linear.x = 0.0
+            cmd_vel.linear.y = 0.0
+            cmd_vel.angular.z = 0.0
+            return cmd_vel
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
@@ -240,7 +228,7 @@ class TrackingNode(Node):
                 
                 # assume obstacle is cleared, will be deteted again at t+1 if not
                 # aims to avoid case of a stale obstacle being "detected"
-                obs_pose = None
+                self.obs_pose = None
                 
         # update control inputs (vx, vy, theta_z)
         cmd_vel = Twist()
