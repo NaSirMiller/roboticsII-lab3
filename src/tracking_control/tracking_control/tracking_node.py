@@ -77,6 +77,8 @@ class TrackingNode(Node):
         self.goal_detected = False
         self.home_detected = False
         
+        self.paused = False
+        
         # ROS parameters
         self.declare_parameter('world_frame_id', 'odom')
 
