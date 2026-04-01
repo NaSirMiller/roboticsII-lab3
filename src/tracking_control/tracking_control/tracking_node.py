@@ -244,7 +244,7 @@ class TrackingNode(Node):
                 cmd_vel.linear.y = 0.0
                 cmd_vel.angular.z = float(np.clip(angular_speed, -1.5, 1.5))
 
-        elif self.goal_state == 'PAUSE':
+        if self.goal_state == 'PAUSE':
             elapsed = time.time() - self.state_start_time
             if elapsed >= 5.0:
                 self.state = 'BACKUP'
@@ -261,7 +261,7 @@ class TrackingNode(Node):
                 cmd_vel.angular.z = 0
                 return cmd_vel
 
-        elif self.goal_state == 'BACKUP':
+        if self.goal_state == 'BACKUP':
             elapsed = time.time() - self.state_start_time
             if elapsed >= 5.0:
                 self.state = 'GO TO GOAL'
