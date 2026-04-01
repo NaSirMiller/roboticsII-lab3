@@ -240,14 +240,14 @@ class TrackingNode(Node):
                 cmd_vel.linear.y = 0.0
                 cmd_vel.angular.z = float(np.clip(angular_speed, -1.5, 1.5))
 
-            elif self.state == "PAUSE":
+            if self.state == "PAUSE":
                 cmd_vel.linear.x = 0
                 cmd_vel.angular.z = 0
                 if current_time - self.state_start_time >= 5.0:  # 5 seconds pause
                     self.state = "BACKUP"
                     self.state_start_time = current_time
 
-            elif self.state == "BACKUP":
+            if self.state == "BACKUP":
                 cmd_vel.linear.x = -0.3
                 cmd_vel.angular.z = 0
                 if current_time - self.state_start_time >= 2.0:  # 2 seconds backup
