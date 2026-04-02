@@ -69,6 +69,7 @@ class TrackingNode(Node):
         # Current object pose
         self.obs_pose = None
         self.goal_pose = None
+        self.return_home = False
         
         # Start pose
         self.t = 0
@@ -128,6 +129,7 @@ class TrackingNode(Node):
             transform = self.tf_buffer.lookup_transform(odom_id,msg.header.frame_id,rclpy.time.Time(),rclpy.duration.Duration(seconds=0.1))
             t_R = q2R(np.array([transform.transform.rotation.w,transform.transform.rotation.x,transform.transform.rotation.y,transform.transform.rotation.z]))
             cp_world = t_R@center_points+np.array([transform.transform.translation.x,transform.transform.translation.y,transform.transform.translation.z])
+        
         except TransformException as e:
             self.get_logger().error('Transform Error: {}'.format(e))
             return
@@ -146,12 +148,14 @@ class TrackingNode(Node):
             robot_world_y = transform.transform.translation.y
             robot_world_z = transform.transform.translation.z
             robot_world_R = q2R([transform.transform.rotation.w, transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z])
-            self.robot_world_yaw = robot_world_R
+            
+            [roll, pitch, yaw] = euler_from_quaternion([transform.transform.rotation.w,transform.transform.rotation.x,transform.transform.rotation.y,transform.transform.rotation.z])
+            self.robot_world_yaw = yaw
             
             # Set start pose at first pose retrieval step
             if self.t == 0:
                 self.get_logger().info('--------HOME POSE SET----------')
-                self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_R])
+                self.home_pose = np.array([robot_world_x,robot_world_y,self.robot_world_yaw])
                 self.t = 1
         
         except TransformException as e:
@@ -161,11 +165,23 @@ class TrackingNode(Node):
         obstacle_pose = None
         
         # avoid multiplying None with np.ndarray
-        if self.obs_pose is not None:
-            obstacle_pose = (robot_world_R @ self.obs_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
-        goal_pose = (robot_world_R @ self.goal_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
+        #if self.obs_pose is not None:
+        #    obstacle_pose = (robot_world_R @ self.obs_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
+        #goal_pose = (robot_world_R @ self.goal_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
         
-        return obstacle_pose, goal_pose
+        robot_pose = np.array([robot_world_x, robot_world_y, yaw])
+        
+        if self.obs_pose is not None:
+            obstacle_pose = self.obs_pose
+        else:
+            obstacle_pose = None
+
+        if self.goal_pose is not None:
+            goal_pose = self.goal_pose
+        else: 
+            goal_pose = None
+        
+        return robot_pose, obstacle_pose, goal_pose
     
     def timer_update(self):
         # NOTE: May need to be updated to avoid robot doing nothing when not detecting the robot
@@ -177,9 +193,8 @@ class TrackingNode(Node):
             return
         
         # Get the current object pose in the robot base_footprint frame
-        current_obs_pose, current_goal_pose = self.get_current_poses()
-        
-        cmd_vel = self.controller(current_goal_pose, current_obs_pose)
+        robot_pose, current_obs_pose, current_goal_pose = self.get_current_poses()
+        cmd_vel = self.controller(current_goal_pose, robot_pose, current_obs_pose)
         
         # publish the control command
         self.pub_control_cmd.publish(cmd_vel)
@@ -195,16 +210,23 @@ class TrackingNode(Node):
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
+        if self.return_home == True:
+            goal_pose = self.home_pose # first goal has been met, now return back to starting point
+            goal_margin = 0.1 # update margin to avoid robot missing original home pose
+        
         rel_goal = goal_pose[:2] - robot_pose[:2]
         goal_dist  = np.linalg.norm(rel_goal)
-        goal_angle = math.atan2(rel_goal[1], rel_goal[0]) - self.robot_world_yaw
+        goal_angle = math.atan2(rel_goal[1], rel_goal[0]) - robot_pose[2]
         goal_angle = (goal_angle + np.pi) % (2*np.pi) - np.pi
         
         # Robot within acceptable distance to goal
-        if goal_dist <= goal_margin: 
-            self.get_logger().info("==============GOAL REACHED=============")
-            self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            self.goal_margin = 0.1 # update margin to avoid robot missing original home pose
+        if goal_dist <= goal_margin:
+            if self.return_home == False:
+                self.get_logger().info("==============GOAL REACHED=============")
+                self.return_home = True
+            else:
+                self.get_logger().info("==========HOME REACHED===========")
+            
             cmd_vel = Twist()
             cmd_vel.linear.x = 0.0
             cmd_vel.linear.y = 0.0
