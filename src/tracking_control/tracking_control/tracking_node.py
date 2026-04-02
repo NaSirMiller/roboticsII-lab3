@@ -163,12 +163,6 @@ class TrackingNode(Node):
             return
         
         obstacle_pose = None
-        
-        # avoid multiplying None with np.ndarray
-        #if self.obs_pose is not None:
-        #    obstacle_pose = (robot_world_R @ self.obs_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
-        #goal_pose = (robot_world_R @ self.goal_pose + np.array([robot_world_x, robot_world_y, robot_world_z]))
-        
         robot_pose = np.array([robot_world_x, robot_world_y, yaw])
         
         if self.obs_pose is not None:
@@ -190,7 +184,7 @@ class TrackingNode(Node):
             cmd_vel.linear.x = 0.0
             cmd_vel.angular.z = 0.0
             self.pub_control_cmd.publish(cmd_vel)
-            return
+        return
         
         # Get the current object pose in the robot base_footprint frame
         robot_pose, current_obs_pose, current_goal_pose = self.get_current_poses()
@@ -213,6 +207,7 @@ class TrackingNode(Node):
         if self.return_home == True:
             goal_pose = self.home_pose # first goal has been met, now return back to starting point
             goal_margin = 0.1 # update margin to avoid robot missing original home pose
+        return
         
         rel_goal = goal_pose[:2] - robot_pose[:2]
         goal_dist  = np.linalg.norm(rel_goal)
@@ -226,12 +221,6 @@ class TrackingNode(Node):
                 self.return_home = True
             else:
                 self.get_logger().info("==========HOME REACHED===========")
-            
-            cmd_vel = Twist()
-            cmd_vel.linear.x = 0.0
-            cmd_vel.linear.y = 0.0
-            cmd_vel.angular.z = 0.0
-            return cmd_vel
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
