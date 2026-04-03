@@ -169,11 +169,12 @@ class TrackingNode(Node):
                       robot_world_z]
                     ))
         
-        goal_pose = (robot_world_R @ self.goal_pose + 
-        np.array([robot_world_x,
-                  robot_world_y,
-                  robot_world_z]
-                ))
+        if self.return_home:
+            robot_pos = np.array([robot_world_x, robot_world_y, robot_world_z])
+            goal_pose = robot_world_R @ (self.home_pose - robot_pos)
+        else:
+            goal_pose = (robot_world_R @ self.goal_pose +
+                        np.array([robot_world_x, robot_world_y, robot_world_z]))
         
         return obstacle_pose, goal_pose
     
