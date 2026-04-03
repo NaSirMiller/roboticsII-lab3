@@ -169,11 +169,25 @@ class TrackingNode(Node):
                       robot_world_z]
                     ))
         
-        # if self.return_home:
-        #     robot_pos = np.array([robot_world_x, robot_world_y, robot_world_z])
-        #     goal_pose = robot_world_R @ (self.home_pose - robot_pos)
-        # else:
-        goal_pose = (robot_world_R @ self.goal_pose +
+        
+        if self.return_home:
+            # Look up robot position in odom frame
+            transform_to_odom = self.tf_buffer.lookup_transform(odom_id, 'base_footprint', rclpy.time.Time())
+            robot_pos_in_odom = np.array([
+                transform_to_odom.transform.translation.x,
+                transform_to_odom.transform.translation.y,
+                transform_to_odom.transform.translation.z
+            ])
+            robot_R_in_odom = q2R([
+                transform_to_odom.transform.rotation.w,
+                transform_to_odom.transform.rotation.x,
+                transform_to_odom.transform.rotation.y,
+                transform_to_odom.transform.rotation.z
+            ])
+            # Vector to home in odom frame, rotated into base_footprint frame
+            goal_pose = robot_R_in_odom.T @ (self.home_pose - robot_pos_in_odom)
+        else:
+            goal_pose = (robot_world_R @ self.goal_pose +
                     np.array([robot_world_x, robot_world_y, robot_world_z]))
         
         return obstacle_pose, goal_pose
