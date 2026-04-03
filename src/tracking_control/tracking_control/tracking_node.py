@@ -171,7 +171,7 @@ class TrackingNode(Node):
         
         
         if self.return_home:
-            # Look up robot position in odom frame
+            # look up robot position in odom frame
             transform_to_odom = self.tf_buffer.lookup_transform(odom_id, 'base_footprint', rclpy.time.Time())
             robot_pos_in_odom = np.array([
                 transform_to_odom.transform.translation.x,
@@ -184,7 +184,7 @@ class TrackingNode(Node):
                 transform_to_odom.transform.rotation.y,
                 transform_to_odom.transform.rotation.z
             ])
-            # Vector to home in odom frame, rotated into base_footprint frame
+            # vector to home in odom frame, rotated into base_footprint frame
             goal_pose = robot_R_in_odom.T @ (self.home_pose - robot_pos_in_odom)
         else:
             goal_pose = (robot_world_R @ self.goal_pose +
@@ -216,7 +216,7 @@ class TrackingNode(Node):
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.6,   # stop when get close enough to the goal
-        home_margin = 0.3,   # stop when get close enough to the home pose 
+        home_margin = 0.1,   # stop when get close enough to the home pose 
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
