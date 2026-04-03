@@ -205,12 +205,15 @@ class TrackingNode(Node):
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
+        if self.return_home:
+            goal_margin = home_margin
+            
         goal_dist  = np.linalg.norm(goal_pose[:2])
         goal_angle = math.atan2(goal_pose[1], goal_pose[0])
 
         # Robot within acceptable distance to goal
         if goal_dist <= goal_margin:
-            if self.return_home == False:
+            if not self.return_home:
                 self.get_logger().info(
                     "==============GOAL REACHED============="
                     )
@@ -219,8 +222,12 @@ class TrackingNode(Node):
                 self.get_logger().info(
                     "==========HOME REACHED==========="
                     )
-                self.goal_pose = None # stop robot from continuing
-                return
+                # stop robot from continuing
+                self.goal_pose = None
+                cmd_vel = Twist() 
+                cmd_vel.linear.x = 0.0
+                cmd_vel.angular.z = 0.0
+                return cmd_vel
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
