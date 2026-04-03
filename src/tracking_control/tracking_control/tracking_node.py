@@ -69,16 +69,11 @@ class TrackingNode(Node):
         # Current object pose
         self.obs_pose = None
         self.goal_pose = None
+        self.return_home = False
         
         # Start pose
         self.t = 0
         self.home_pose = None
-        
-        # Flags to end process (when both True)
-        self.goal_detected = False
-        self.home_detected = False
-        
-        self.paused = False
         
         # ROS parameters
         self.declare_parameter('world_frame_id', 'odom')
@@ -154,6 +149,7 @@ class TrackingNode(Node):
             
             # Set start pose at first pose retrieval step
             if self.t == 0:
+                self.get_logger().info('--------HOME POSE SET----------')
                 self.home_pose = np.array([robot_world_x,robot_world_y,robot_world_z])
                 self.t = 1
     
@@ -205,6 +201,7 @@ class TrackingNode(Node):
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.3,   # stop when get close enough to the goal
+        home_margin = 0.3,   # stop when get close enough to the home pose 
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
@@ -213,11 +210,17 @@ class TrackingNode(Node):
 
         # Robot within acceptable distance to goal
         if goal_dist <= goal_margin:
-            self.get_logger().info("==============GOAL REACHED=============")
-            time.sleep(5)
-            
-            self.goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin = 0.1 # update margin to avoid robot avoiding original home pose
+            if self.return_home == False:
+                self.get_logger().info(
+                    "==============GOAL REACHED============="
+                    )
+                self.return_home = True
+            else:
+                self.get_logger().info(
+                    "==========HOME REACHED==========="
+                    )
+                self.goal_pose = None # stop robot from continuing
+                return
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
