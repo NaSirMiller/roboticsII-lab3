@@ -218,7 +218,7 @@ class TrackingNode(Node):
                     "==============GOAL REACHED============="
                     )
                 self.return_home = True
-                self.goal_pose = self.home_pose
+                self.goal_pose = self.home_pose.copy()
             else:
                 self.get_logger().info(
                     "==========HOME REACHED==========="
