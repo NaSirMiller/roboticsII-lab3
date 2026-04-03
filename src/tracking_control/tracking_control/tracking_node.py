@@ -199,11 +199,11 @@ class TrackingNode(Node):
         robot_pose: np.ndarray,
         obs_pose: np.ndarray = None,
         K_linear = 0.4,  # proportional gain for forward speed
-        K_angular = 2.0,   # proportional gain for turning
+        K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.5,   # stop when get close enough to the goal
         home_margin = 0.2,
-        obs_margin = 1.0,   # start repelling when get too close to obstacle
-        obs_repel = 0.5,  # how strongly to turn away from obstacle
+        obs_margin = 0.7,   # start repelling when get too close to obstacle
+        obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
         if self.return_home == True:
             goal_pose = self.home_pose # first goal has been met, now return back to starting point
