@@ -184,7 +184,7 @@ class TrackingNode(Node):
             cmd_vel.linear.x = 0.0
             cmd_vel.angular.z = 0.0
             self.pub_control_cmd.publish(cmd_vel)
-        return
+            return
         
         # Get the current object pose in the robot base_footprint frame
         robot_pose, current_obs_pose, current_goal_pose = self.get_current_poses()
@@ -201,15 +201,16 @@ class TrackingNode(Node):
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
         goal_margin = 0.3,   # stop when get close enough to the goal
+        home_margin = 0.1,
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
     ):
         if self.return_home == True:
             goal_pose = self.home_pose # first goal has been met, now return back to starting point
-            goal_margin = 0.1 # update margin to avoid robot missing original home pose
-        return
+            goal_margin = home_margin # update margin to avoid robot missing original home pose
+            return
         
-        rel_goal = goal_pose[:2] - robot_pose[:2]
+        rel_goal = goal_pose[:2] - robot_pose[:2] # goal w.r.t current robot pose
         goal_dist  = np.linalg.norm(rel_goal)
         goal_angle = math.atan2(rel_goal[1], rel_goal[0]) - robot_pose[2]
         goal_angle = (goal_angle + np.pi) % (2*np.pi) - np.pi
@@ -221,6 +222,8 @@ class TrackingNode(Node):
                 self.return_home = True
             else:
                 self.get_logger().info("==========HOME REACHED===========")
+                self.goal_pose = None # stop robot from continuing
+                return
 
         # Proportional controller
         linear_speed = K_linear * goal_dist
@@ -238,7 +241,7 @@ class TrackingNode(Node):
                 linear_speed *= (obs_dist / obs_margin)
                 
                 # assume obstacle is cleared, will be deteted again at t+1 if not
-                # aims to avoid case of a stale obstacle being "detected"
+                # aims to avoid case of an old obstacle being "detected"
                 self.obs_pose = None
                 
         # update control inputs (vx, vy, theta_z)
@@ -246,7 +249,7 @@ class TrackingNode(Node):
         cmd_vel.linear.x = float(np.clip(linear_speed,  -0.3,  0.3))
         cmd_vel.linear.y = 0.0
         cmd_vel.angular.z = float(np.clip(angular_speed, -1.5,  1.5))
-                                
+        
         return cmd_vel
 
 def main(args=None):
