@@ -200,7 +200,7 @@ class TrackingNode(Node):
         obs_pose: np.ndarray = None,
         K_linear = 0.4,  # proportional gain for forward speed
         K_angular = 1.2,   # proportional gain for turning
-        goal_margin = 0.3,   # stop when get close enough to the goal
+        goal_margin = 0.6,   # stop when get close enough to the goal
         home_margin = 0.3,   # stop when get close enough to the home pose 
         obs_margin = 0.7,   # start repelling when get too close to obstacle
         obs_repel = 0.9,  # how strongly to turn away from obstacle
